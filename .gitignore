@@ -4,3 +4,5 @@ _*
 .vscode
 .history
 .venv*
+/data
+checkpoints
