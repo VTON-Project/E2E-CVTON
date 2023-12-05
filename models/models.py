@@ -398,28 +398,23 @@ def put_on_multi_gpus(opt, model):
 
 
 def preprocess_input(opt, data):
-    data['cloth_label'] = data['cloth_label'].long()
-    data['body_label'] = data['body_label'].long()
-    data['densepose_label'] = data['densepose_label'].long()
-    
-    data['cloth_label'] = data['cloth_label'].cuda()
-    data['body_label'] = data['body_label'].cuda()
-    data['densepose_label'] = data['densepose_label'].cuda()
-    
     for key in data['image'].keys():
         data['image'][key] = data['image'][key].cuda()
         
-    
     if "body" in opt.segmentation:
+      data['body_label'] = data['body_label'].long()
+      data['body_label'] = data['body_label'].cuda()
       label_body_map = data['body_label']
       bs, _, h, w = label_body_map.size()
       nc = opt.semantic_nc[0]
       input_body_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
       input_body_semantics = input_body_label.scatter_(1, label_body_map, 1.0)
     else:
-      input_body_semantice = None
+      input_body_semantics = None
     
     if "cloth" in opt.segmentation:
+      data['cloth_label'] = data['cloth_label'].long()
+      data['cloth_label'] = data['cloth_label'].cuda()
       label_cloth_map = data['cloth_label']
       bs, _, h, w = label_cloth_map.size()
       nc = opt.semantic_nc[1]
@@ -429,6 +424,8 @@ def preprocess_input(opt, data):
       input_cloth_semantics = None 
     
     if "densepose" in opt.segmentation:
+      data['densepose_label'] = data['densepose_label'].long()
+      data['densepose_label'] = data['densepose_label'].cuda()
       label_densepose_map = data['densepose_label']
       bs, _, h, w = label_densepose_map.size()
       nc = opt.semantic_nc[2]
