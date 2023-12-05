@@ -150,63 +150,76 @@ class VitonDataset(Dataset):
         
         # get the mask without upper clothes / dress, hands, neck
         # additionally, get cloth segmentations by cloth part
-        cloth_seg_transf = np.zeros(self.opt.img_size)
-        mask = np.zeros(self.opt.img_size)
-        for i, color in enumerate(semantic_cloth_labels):
-            cloth_seg_transf[np.all(cloth_seg == color, axis=-1)] = i
-            if i < (6 + self.opt.no_bg):    # this works, because colors are sorted in a specific way with background being the 8th.
-                mask[np.all(cloth_seg == color, axis=-1)] = 1.0
-                
-        cloth_seg_transf = np.expand_dims(cloth_seg_transf, 0)
-        cloth_seg_transf = torch.tensor(cloth_seg_transf)
+
+        if "cloth" in self.opt.segementation:
+          cloth_seg_transf = np.zeros(self.opt.img_size)
+          mask = np.zeros(self.opt.img_size)
+          for i, color in enumerate(semantic_cloth_labels):
+              cloth_seg_transf[np.all(cloth_seg == color, axis=-1)] = i
+              if i < (6 + self.opt.no_bg):    # this works, because colors are sorted in a specific way with background being the 8th.
+                  mask[np.all(cloth_seg == color, axis=-1)] = 1.0
+                  
+          cloth_seg_transf = np.expand_dims(cloth_seg_transf, 0)
+          cloth_seg_transf = torch.tensor(cloth_seg_transf)
+        else:
+          cloth_seg_transf = None
         
         mask = np.repeat(np.expand_dims(mask, -1), 3, axis=-1).astype(np.uint8)
         masked_image = image * (1 - mask)
         
         # load and process the body labels
-        body_seg = cv2.imread(os.path.join(self.db_path, "data", "image_body_parse", df_row["poseA"].replace(".jpg", ".png")))
-        body_seg = cv2.cvtColor(body_seg, cv2.COLOR_BGR2RGB)
-        body_seg = cv2.resize(body_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
         
-        # get one-hot encoded body segmentations 
-        body_seg_transf = np.zeros(self.opt.img_size)
-        for i, color in enumerate(semantic_body_labels):
-            body_seg_transf[np.all(body_seg == color, axis=-1)] = i
+        if "body" in self.opt.segementation:
+            body_seg = cv2.imread(os.path.join(self.db_path, "data", "image_body_parse", df_row["poseA"].replace(".jpg", ".png")))
+            body_seg = cv2.cvtColor(body_seg, cv2.COLOR_BGR2RGB)
+            body_seg = cv2.resize(body_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
             
-            # additionally, get body segmentation centroids.
-            if self.phase == "train" and self.opt.add_pd_loss and (self.body_label_centroids[index] is None or len(self.body_label_centroids[index]) != len(self.hand_indices)) and i in self.hand_indices:
-                if self.body_label_centroids[index] is None:
-                    self.body_label_centroids[index] = []
-                    
-                non_zero = np.nonzero(np.all(body_seg == color, axis=-1))
-                if len(non_zero[0]):
-                    x = int(non_zero[0].mean())
-                else:
-                    x = -1
-                    
-                if len(non_zero[1]):
-                    y = int(non_zero[1].mean())
-                else:
-                    y = -1
-                    
-                self.body_label_centroids[index].append([x, y])
+            # get one-hot encoded body segmentations 
+            body_seg_transf = np.zeros(self.opt.img_size)
+            for i, color in enumerate(semantic_body_labels):
+                body_seg_transf[np.all(body_seg == color, axis=-1)] = i
                 
-        body_label_centroid = self.body_label_centroids[index] if self.body_label_centroids is not None else ""
-        
-        body_seg_transf = np.expand_dims(body_seg_transf, 0)
-        body_seg_transf = torch.tensor(body_seg_transf)
-        
-        densepose_seg = cv2.imread(os.path.join(self.db_path, "data", "image_densepose_parse", df_row["poseA"].replace(".jpg", ".png")))
-        densepose_seg = cv2.cvtColor(densepose_seg, cv2.COLOR_BGR2RGB)
-        densepose_seg = cv2.resize(densepose_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
-        
-        densepose_seg_transf = np.zeros(self.opt.img_size)
-        for i, color in enumerate(semantic_densepose_labels):
-            densepose_seg_transf[np.all(densepose_seg == color, axis=-1)] = i
+                # additionally, get body segmentation centroids.
+                if self.phase == "train" and self.opt.add_pd_loss and (self.body_label_centroids[index] is None or len(self.body_label_centroids[index]) != len(self.hand_indices)) and i in self.hand_indices:
+                    if self.body_label_centroids[index] is None:
+                        self.body_label_centroids[index] = []
+                        
+                    non_zero = np.nonzero(np.all(body_seg == color, axis=-1))
+                    if len(non_zero[0]):
+                        x = int(non_zero[0].mean())
+                    else:
+                        x = -1
+                        
+                    if len(non_zero[1]):
+                        y = int(non_zero[1].mean())
+                    else:
+                        y = -1
+                        
+                    self.body_label_centroids[index].append([x, y])
+                    
+            body_label_centroid = self.body_label_centroids[index] if self.body_label_centroids is not None else ""
             
-        densepose_seg_transf = np.expand_dims(densepose_seg_transf, 0)
-        densepose_seg_transf = torch.tensor(densepose_seg_transf)
+            body_seg_transf = np.expand_dims(body_seg_transf, 0)
+            body_seg_transf = torch.tensor(body_seg_transf)
+        else:
+            body_seg_transf = None
+            body_label_centroid = None
         
+        if "densepose" in self.opt.segementation:
+            densepose_seg = cv2.imread(os.path.join(self.db_path, "data", "image_densepose_parse", df_row["poseA"].replace(".jpg", ".png")))
+            densepose_seg = cv2.cvtColor(densepose_seg, cv2.COLOR_BGR2RGB)
+            densepose_seg = cv2.resize(densepose_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
+            
+            densepose_seg_transf = np.zeros(self.opt.img_size)
+            for i, color in enumerate(semantic_densepose_labels):
+                densepose_seg_transf[np.all(densepose_seg == color, axis=-1)] = i
+                
+            densepose_seg_transf = np.expand_dims(densepose_seg_transf, 0)
+            densepose_seg_transf = torch.tensor(densepose_seg_transf)
+        else:
+            densepose_seg_transf = None 
+
+            
         # scale the inputs to range [-1, 1]
         image = self.transform(image)
         image = (image - 0.5) / 0.5
@@ -275,8 +288,7 @@ class VitonDataset(Dataset):
                 "name": df_row["poseA"],
                 "agnostic": agnostic,
                 "original_size": original_size,
-                "label_centroid": body_label_centroid}
-            
+                "label_centroid": body_label_centroid}            
     def __len__(self):
         return len(self.filepath_df)
     
