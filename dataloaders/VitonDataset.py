@@ -161,11 +161,11 @@ class VitonDataset(Dataset):
                   
           cloth_seg_transf = np.expand_dims(cloth_seg_transf, 0)
           cloth_seg_transf = torch.tensor(cloth_seg_transf)
+          mask = np.repeat(np.expand_dims(mask, -1), 3, axis=-1).astype(np.uint8)
+          masked_image = image * (1 - mask)
         else:
           cloth_seg_transf = None
-        
-        mask = np.repeat(np.expand_dims(mask, -1), 3, axis=-1).astype(np.uint8)
-        masked_image = image * (1 - mask)
+          masked_image = image
         
         # load and process the body labels
         
