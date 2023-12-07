@@ -35,7 +35,7 @@ semantic_cloth_labels = [
 ]
 
 semantic_densepose_labels = [
-    [0, 0, 0], # Background
+  [0, 0, 0], # Background
 	[37, 60, 163], # Torso back
 	[20, 80, 194], # Torso front
 	[4, 97, 223], # Right Hand
@@ -147,32 +147,32 @@ class VitonDataset(Dataset):
         # additionally, get cloth segmentations by cloth part
 
         if "cloth" in self.opt.segmentation:
-          # load cloth labels
-          cloth_seg = cv2.imread(os.path.join(self.db_path, "data", "image_parse_with_hands", df_row["poseA"].replace(".jpg", ".png")))
-          cloth_seg = cv2.cvtColor(cloth_seg, cv2.COLOR_BGR2RGB)
-          cloth_seg = cv2.resize(cloth_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
+            # load cloth labels
+            cloth_seg = cv2.imread(os.path.join(self.db_path, "data", "image_parse_with_hands", df_row["poseA"].replace(".jpg", ".png")))
+            cloth_seg = cv2.cvtColor(cloth_seg, cv2.COLOR_BGR2RGB)
+            cloth_seg = cv2.resize(cloth_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
+            
+            cloth_seg_transf = np.zeros(self.opt.img_size)
+            mask = np.zeros(self.opt.img_size)
+            for i, color in enumerate(semantic_cloth_labels):
+                cloth_seg_transf[np.all(cloth_seg == color, axis=-1)] = i
+                if i < (6 + self.opt.no_bg):    # this works, because colors are sorted in a specific way with background being the 8th.
+                    mask[np.all(cloth_seg == color, axis=-1)] = 1.0
+                    
+            cloth_seg_transf = np.expand_dims(cloth_seg_transf, 0)
+            cloth_seg_transf = torch.tensor(cloth_seg_transf)
           
-          cloth_seg_transf = np.zeros(self.opt.img_size)
-          mask = np.zeros(self.opt.img_size)
-          for i, color in enumerate(semantic_cloth_labels):
-              cloth_seg_transf[np.all(cloth_seg == color, axis=-1)] = i
-              if i < (6 + self.opt.no_bg):    # this works, because colors are sorted in a specific way with background being the 8th.
-                  mask[np.all(cloth_seg == color, axis=-1)] = 1.0
-                  
-          cloth_seg_transf = np.expand_dims(cloth_seg_transf, 0)
-          cloth_seg_transf = torch.tensor(cloth_seg_transf)
-          
-        else:
-          cloth_seg_transf = None
-          mask = cv2.imread(os.path.join(self.db_path, "data", "mask", df_row["poseA"].replace(".jpg", ".png")),
-                            cv2.IMREAD_GRAYSCALE).astype(np.float64)
-          mask[mask>0] = 1.0
-          mask = cv2.resize(mask, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
+        else: 
+            cloth_seg_transf = torch.tensor([])
+            mask = cv2.imread(os.path.join(self.db_path, "data", "mask", df_row["poseA"].replace(".jpg", ".png")),
+                                cv2.IMREAD_GRAYSCALE)
+            mask[mask>0] = 1
+            mask = cv2.resize(mask, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
           
           
-        mask = np.repeat(np.expand_dims(mask, -1), 3, axis=-1).astype(np.uint8)
+        mask = np.repeat(np.expand_dims(mask, -1), 3, axis=-1).astype("uint8")
         masked_image = image * (1 - mask)
-        
+    
         # load and process the body labels
         
         if "body" in self.opt.segmentation:
@@ -208,8 +208,8 @@ class VitonDataset(Dataset):
             body_seg_transf = np.expand_dims(body_seg_transf, 0)
             body_seg_transf = torch.tensor(body_seg_transf)
         else:
-            body_seg_transf = None
-            body_label_centroid = None
+            body_seg_transf = torch.tensor([])
+            body_label_centroid = torch.tensor([])
         
         if "densepose" in self.opt.segmentation:
             densepose_seg = cv2.imread(os.path.join(self.db_path, "data", "image_densepose_parse", df_row["poseA"].replace(".jpg", ".png")))
@@ -223,7 +223,7 @@ class VitonDataset(Dataset):
             densepose_seg_transf = np.expand_dims(densepose_seg_transf, 0)
             densepose_seg_transf = torch.tensor(densepose_seg_transf)
         else:
-            densepose_seg_transf = None 
+            densepose_seg_transf = torch.tensor([]) 
 
             
         # scale the inputs to range [-1, 1]
