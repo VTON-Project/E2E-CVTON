@@ -10,12 +10,12 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 semantic_cloth_labels = [
-    [128, 0, 128],
-    [128, 128, 64],
-    [128, 128, 192],
-    [0, 255, 0],
+    [128, 0, 128], # upper
+    [128, 128, 64], # left arm
+    [128, 128, 192], # right arm
+    [0, 255, 0], # neck
     [0, 128, 128], # dress
-    [128, 128, 128], # something upper?
+    [128, 128, 128], 
     
     [0, 0, 0], # bg
     
@@ -35,31 +35,31 @@ semantic_cloth_labels = [
 ]
 
 semantic_densepose_labels = [
-    [0, 0, 0],
-	[105, 105, 105],
-	[85, 107, 47],
-	[139, 69, 19],
-	[72, 61, 139],
-	[0, 128, 0],
-	[154, 205, 50],
-	[0, 0, 139],
-	[255, 69, 0],
-	[255, 165, 0],
-	[255, 255, 0],
-	[0, 255, 0],
-	[186, 85, 211],
-	[0, 255, 127],
-	[220, 20, 60],
-	[0, 191, 255],
-	[0, 0, 255],
-	[216, 191, 216],
-	[255, 0, 255],
-	[30, 144, 255],
-	[219, 112, 147],
-	[240, 230, 140],
-	[255, 20, 147],
-	[255, 160, 122],
-	[127, 255, 212]
+    [0, 0, 0], # Background
+	[37, 60, 163], # Torso back
+	[20, 80, 194], # Torso front
+	[4, 97, 223], # Right Hand
+	[8, 110, 221], # Left Hand
+	[14, 122, 216], # Left Foot
+	[20, 132, 212], # Right Foot
+	[15, 144, 208], # Upper Leg Right back
+	[11, 156, 203], # Upper Leg Left back
+	[6, 166, 198], # Upper Leg Right front
+	[22, 173, 185], # Upper Leg Left front
+	[38, 179, 172], # Lower Leg Right back
+	[55, 185, 159], # Lower Leg Left back
+	[86, 187, 144], # Lower Leg Right front
+	[114, 189, 130], # Lower Leg Left front
+	[145, 191, 116], # Upper Arm Left inner
+	[170, 189, 105], # Upper Arm Right inner
+	[192, 188, 96], # Upper Arm Left outer
+	[216, 186, 86], # Upper Arm Right outer
+	[228, 192, 74], # Lower Arm Left inner
+	[240, 199, 60], # Lower Arm Right inner
+	[252, 206, 46], # Lower Arm Left outer
+	[251, 220, 36], # Lower Arm Right outer
+	[250, 235, 25], # Head right
+	[249, 251, 14] # Head left
 ]
 
 semantic_body_labels = [
@@ -140,18 +140,18 @@ class VitonDataset(Dataset):
         # extract non-warped cloth
         cloth_image = cv2.imread(os.path.join(self.db_path, "data", "cloth", df_row["target"]))
         cloth_image = cv2.cvtColor(cloth_image, cv2.COLOR_BGR2RGB)
-        
-        # load cloth labels
-        cloth_seg = cv2.imread(os.path.join(self.db_path, "data", "image_parse_with_hands", df_row["poseA"].replace(".jpg", ".png")))
-        cloth_seg = cv2.cvtColor(cloth_seg, cv2.COLOR_BGR2RGB)
-        cloth_seg = cv2.resize(cloth_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
 
         # mask the image to get desired inputs
         
         # get the mask without upper clothes / dress, hands, neck
         # additionally, get cloth segmentations by cloth part
 
-        if "cloth" in self.opt.segementation:
+        if "cloth" in self.opt.segmentation:
+          # load cloth labels
+          cloth_seg = cv2.imread(os.path.join(self.db_path, "data", "image_parse_with_hands", df_row["poseA"].replace(".jpg", ".png")))
+          cloth_seg = cv2.cvtColor(cloth_seg, cv2.COLOR_BGR2RGB)
+          cloth_seg = cv2.resize(cloth_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
+          
           cloth_seg_transf = np.zeros(self.opt.img_size)
           mask = np.zeros(self.opt.img_size)
           for i, color in enumerate(semantic_cloth_labels):
@@ -161,15 +161,21 @@ class VitonDataset(Dataset):
                   
           cloth_seg_transf = np.expand_dims(cloth_seg_transf, 0)
           cloth_seg_transf = torch.tensor(cloth_seg_transf)
-          mask = np.repeat(np.expand_dims(mask, -1), 3, axis=-1).astype(np.uint8)
-          masked_image = image * (1 - mask)
+          
         else:
           cloth_seg_transf = None
-          masked_image = image
+          mask = cv2.imread(os.path.join(self.db_path, "data", "mask", df_row["poseA"].replace(".jpg", ".png")),
+                            cv2.IMREAD_GRAYSCALE).astype(np.float64)
+          mask[mask>0] = 1.0
+          mask = cv2.resize(mask, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
+          
+          
+        mask = np.repeat(np.expand_dims(mask, -1), 3, axis=-1).astype(np.uint8)
+        masked_image = image * (1 - mask)
         
         # load and process the body labels
         
-        if "body" in self.opt.segementation:
+        if "body" in self.opt.segmentation:
             body_seg = cv2.imread(os.path.join(self.db_path, "data", "image_body_parse", df_row["poseA"].replace(".jpg", ".png")))
             body_seg = cv2.cvtColor(body_seg, cv2.COLOR_BGR2RGB)
             body_seg = cv2.resize(body_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
@@ -205,7 +211,7 @@ class VitonDataset(Dataset):
             body_seg_transf = None
             body_label_centroid = None
         
-        if "densepose" in self.opt.segementation:
+        if "densepose" in self.opt.segmentation:
             densepose_seg = cv2.imread(os.path.join(self.db_path, "data", "image_densepose_parse", df_row["poseA"].replace(".jpg", ".png")))
             densepose_seg = cv2.cvtColor(densepose_seg, cv2.COLOR_BGR2RGB)
             densepose_seg = cv2.resize(densepose_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
