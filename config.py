@@ -47,7 +47,7 @@ def add_all_arguments(parser, train):
     parser.add_argument('--dataroot', type=str, default='./data/mpv/', help='path to dataset root')
     parser.add_argument('--img_size', type=int, default=256, help='image size.')
     parser.add_argument('--which_iter', type=str, default='latest', help='which epoch to load when continue_train')
-    parser.add_argument('--gpu_ids', nargs='+', default=[0], type=int, help="GPUs to use for training / inference")
+    parser.add_argument('--gpu_ids', nargs='+', default=[0], type=int, help="GPUs to use for training / inference, -1 means use CPU.")
 
     # for generator
     parser.add_argument('--num_res_blocks', type=int, default=6, help='number of residual blocks in G and D')

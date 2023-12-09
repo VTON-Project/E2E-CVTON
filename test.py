@@ -4,14 +4,13 @@ os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import cv2
 import numpy as np
-from torch.utils.data import DataLoader, dataloader
+from torch.utils.data import DataLoader
 
 import config
-import dataloaders.dataloaders as dataloaders
 import models.models as models
 from dataloaders.MPVDataset import MPVDataset
 from dataloaders.VitonDataset import VitonDataset
-from utils.plotter import evaluate
+# from utils.plotter import evaluate
 
 if __name__=='__main__':
     #--- read options ---#
@@ -19,7 +18,6 @@ if __name__=='__main__':
 
     #--- create dataloader to populate opt ---#
     opt.phase = "test"
-    dataloaders.get_dataloaders(opt)
 
     assert opt.phase in {"val", "test"}
 
@@ -30,29 +28,29 @@ if __name__=='__main__':
     else:
         raise NotImplementedError
 
-    if (opt.phase == "val" or opt.phase == "test"):
-        model = models.OASIS_model(opt)
-        model = models.put_on_multi_gpus(opt, model)
-        model.eval()
+    # if (opt.phase == "val" or opt.phase == "test"):
+    #     model = models.OASIS_model(opt)
+    #     if opt.gpu_ids[0] != -1: model = models.put_on_multi_gpus(opt, model)
+    #     model.eval()
         
-        image_indices = [2, 7, 8, 18, 35, 36, 38, 45, 47, 52, 56, 57, 58, 60, 63, 64, 66, 72, 74, 80]
+    #     image_indices = [2, 7, 8, 18, 35, 36, 38, 45, 47, 52, 56, 57, 58, 60, 63, 64, 66, 72, 74, 80]
 
-        dataset = dataset_cl(opt, phase=opt.phase)
-        evaluate(model, dataset, opt)
+    #     dataset = dataset_cl(opt, phase=opt.phase)
+    #     evaluate(model, dataset, opt)
 
     if opt.phase == "test":
-        model = models.OASIS_model(opt)
-        model = models.put_on_multi_gpus(opt, model)
-        model.eval()
-
         dataset = dataset_cl(opt, phase=opt.phase)
+        
+        model = models.OASIS_model(opt)
+        if opt.gpu_ids[0] != -1: model = models.put_on_multi_gpus(opt, model)
+        model.eval()
         
         test_dataloader = DataLoader(dataset, batch_size=1, shuffle=False, drop_last=False)
         
         os.makedirs(os.path.join("results", opt.name, opt.phase + "_images"), exist_ok=True)
         
         for i, data_i in enumerate(test_dataloader):
-            print(i, "/", len(test_dataloader), end="\r")
+            print(i+1, "/", len(test_dataloader), end="\r")
             image, label = models.preprocess_input(opt, data_i)
             # label["cloth_seg"] = model.module.edit_cloth_seg(image["C_t"], label["body_seg"], label["cloth_seg"])
             agnostic = data_i["agnostic"] if opt.bpgm_id.find("old") >= 0 else None
@@ -75,5 +73,3 @@ if __name__=='__main__':
             cv2.imwrite(os.path.join("results", opt.name, opt.phase + "_images", filename), pred)
         
         print()
-
-

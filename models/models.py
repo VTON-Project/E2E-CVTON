@@ -398,38 +398,42 @@ def put_on_multi_gpus(opt, model):
 
 
 def preprocess_input(opt, data):
-    for key in data['image'].keys():
-        data['image'][key] = data['image'][key].cuda()
+    if opt.gpu_ids[0] != -1:
+        for key in data['image'].keys():
+            data['image'][key] = data['image'][key].cuda()
         
     if "body" in opt.segmentation:
       data['body_label'] = data['body_label'].long()
-      data['body_label'] = data['body_label'].cuda()
+      if opt.gpu_ids[0] != -1: data['body_label'] = data['body_label'].cuda()
       label_body_map = data['body_label']
       bs, _, h, w = label_body_map.size()
       nc = opt.semantic_nc[0]
-      input_body_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
+      if opt.gpu_ids[0] != -1: input_body_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
+      else: input_body_label = torch.FloatTensor(bs, nc, h, w).zero_()
       input_body_semantics = input_body_label.scatter_(1, label_body_map, 1.0)
     else:
       input_body_semantics = None
     
     if "cloth" in opt.segmentation:
       data['cloth_label'] = data['cloth_label'].long()
-      data['cloth_label'] = data['cloth_label'].cuda()
+      if opt.gpu_ids[0] != -1: data['cloth_label'] = data['cloth_label'].cuda()
       label_cloth_map = data['cloth_label']
       bs, _, h, w = label_cloth_map.size()
       nc = opt.semantic_nc[1]
-      input_cloth_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
+      if opt.gpu_ids[0] != -1: input_cloth_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
+      else: input_cloth_label = torch.FloatTensor(bs, nc, h, w).zero_()
       input_cloth_semantics = input_cloth_label.scatter_(1, label_cloth_map, 1.0)
     else:
       input_cloth_semantics = None 
     
     if "densepose" in opt.segmentation:
       data['densepose_label'] = data['densepose_label'].long()
-      data['densepose_label'] = data['densepose_label'].cuda()
+      if opt.gpu_ids[0] != -1: data['densepose_label'] = data['densepose_label'].cuda()
       label_densepose_map = data['densepose_label']
       bs, _, h, w = label_densepose_map.size()
       nc = opt.semantic_nc[2]
-      input_densepose_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
+      if opt.gpu_ids[0] != -1: input_densepose_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
+      else: input_densepose_label = torch.FloatTensor(bs, nc, h, w).zero_()
       input_densepose_semantics = input_densepose_label.scatter_(1, label_densepose_map, 1.0)
     else:
         input_densepose_semantics = None

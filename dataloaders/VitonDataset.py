@@ -294,7 +294,8 @@ class VitonDataset(Dataset):
                 "name": df_row["poseA"],
                 "agnostic": agnostic,
                 "original_size": original_size,
-                "label_centroid": body_label_centroid}            
+                "label_centroid": body_label_centroid}          
+          
     def __len__(self):
         return len(self.filepath_df)
     

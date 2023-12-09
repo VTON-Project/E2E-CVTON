@@ -7,3 +7,4 @@ python3 test.py \
 --transform_cloth \
 --bpgm_id 256_26_3_viton \
 --img_size 512 \
+--gpu_ids -1
