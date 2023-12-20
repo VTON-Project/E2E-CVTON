@@ -7,7 +7,7 @@ from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large
 from tqdm import tqdm
 
 from .utils import convert_to_path
-from ..utils.utils import AverageCalculator
+from utils.utils import AverageCalculator
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class Masker(nn.Module):
-    def __init__(self, load_weights: str | None = 'pretrained', device: str | None = None):
+    def __init__(self, load_weights: str | None = None, device = "cpu"):
         super().__init__()
         self.model = deeplabv3_mobilenet_v3_large(weights="DEFAULT" if load_weights=="pretrained" else None)
         self.model.classifier[-1] = nn.Conv2d(256, 1, 1)
@@ -26,21 +26,22 @@ class Masker(nn.Module):
         self.loss_func = nn.BCEWithLogitsLoss()
         self.optimizer = torch.optim.Adam(self.parameters())
         
-        if load_weights is not None:
+        if load_weights is not None and load_weights != "pretrained":
             self.load_model(load_weights)
             
-        if device is not None: self.to(device)
-        self.device = device
-            
+        self.to_device(device)    
         self.trainmode(False)
  
         
     def train_model(self, train_dl: 'DataLoader', test_dl: "DataLoader",
-                    best_ckpt: 'str | PathLike', last_ckpt: 'str | PathLike',
+                    last_ckpt: 'str | PathLike', best_ckpt: 'str | PathLike',
                     run_json_path: 'str | PathLike', learning_rate: float | None = None,
                     epochs: int | None = None):
         
         best_ckpt, last_ckpt, run_json_path = convert_to_path(best_ckpt, last_ckpt, run_json_path)
+        best_ckpt.parent.mkdir(parents=True, exist_ok=True)
+        last_ckpt.parent.mkdir(parents=True, exist_ok=True)
+        run_json_path.parent.mkdir(parents=True, exist_ok=True)
         
         if run_json_path.exists():
             with open(run_json_path, 'r') as f:
@@ -62,14 +63,16 @@ class Masker(nn.Module):
         
         calc = AverageCalculator()
         least_loss = self._get_least_loss(run["test_losses"])
+        print(f"Lowest test loss yet: {least_loss}")
         
         for epoch in range(run["last_epoch"]+1, run["epochs"]+1):
-            print(f"Epoch {epoch}/{run['epochs']}:")
+            print(f"\nEpoch {epoch}/{run['epochs']}:")
             
             self.trainmode(True)
             for data in tqdm(train_dl):
                 self.optimizer.zero_grad()
-                loss = self.loss_func(self(data["person"], True), data["mask"])
+                loss = self.loss_func(self(data["person"], True), 
+                                      data["mask"].to(self.device))
                 loss.backward()
                 self.optimizer.step()
                 
@@ -82,21 +85,24 @@ class Masker(nn.Module):
             self.trainmode(False)
             for data in tqdm(test_dl):
                 with torch.no_grad():
-                    loss = self.loss_func(self(data["person"], True), data["mask"])
+                    loss = self.loss_func(self(data["person"], True), 
+                                          data["mask"].to(self.device))
                     calc.update(loss.item(), data["person"].shape[0])
                     
             run["test_losses"].append(calc.avg())
             calc.reset()
             print("Testing Loss:", run["test_losses"][-1])
             
-            run["last_epoch"] = epoch
-            with open(run_json_path, 'w') as f:
-                json.dump(run, f)
-                
-            torch.save(self.state_dict(), last_ckpt)
             if least_loss > run["test_losses"][-1]:
                 torch.save(self.state_dict(), best_ckpt)
                 least_loss = run["test_losses"][-1]
+                print("New best model saved!")
+            
+            torch.save(self.state_dict(), last_ckpt)  
+              
+            run["last_epoch"] = epoch
+            with open(run_json_path, 'w') as f:
+                json.dump(run, f, indent=4)
                 
         print("\nTraining complete!")
 
@@ -106,10 +112,11 @@ class Masker(nn.Module):
         if X.dim() == 3: X.unsqueeze(0)
         
         if training:
-            return self.model(X)
+            return self.model(X)["out"].squeeze()
         else:
             with torch.no_grad():
-                output = self.output_actv(self.model(X))
+                output = self.model(X)["out"].squeeze()
+                output = self.output_actv(output)
                 output[output < 0.5] = 0
                 output[output >= 0.5] = 1
                 
@@ -122,6 +129,10 @@ class Masker(nn.Module):
 
     def load_model(self, model_path: 'str | PathLike'):
         self.load_state_dict(torch.load(model_path))
+        
+    def to_device(self, device):
+        self.device = device
+        return self.to(device)
         
     @staticmethod
     def _get_least_loss(losses: list):
