@@ -312,7 +312,16 @@ def labelcolormap(N):
             cmap[i, 2] = b
     return cmap
 
-
-
-
-
+class AverageCalculator:
+    def __init__(self):
+        self.reset()
+        
+    def update(self, num, count=1):
+        self.count += count
+        self.sum += num * count
+        
+    def avg(self):
+        return self.sum/self.count
+        
+    def reset(self):
+        self.sum = self.count = 0.0
