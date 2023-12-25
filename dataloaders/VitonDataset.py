@@ -9,6 +9,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+from densepose_utils import DenseposeSegmenter
+
 semantic_cloth_labels = [
     [128, 0, 128], # upper
     [128, 128, 64], # left arm
@@ -35,7 +37,7 @@ semantic_cloth_labels = [
 ]
 
 semantic_densepose_labels = [
-  [0, 0, 0], # Background
+    [0, 0, 0], # Background
 	[37, 60, 163], # Torso back
 	[20, 80, 194], # Torso front
 	[4, 97, 223], # Right Hand
@@ -83,7 +85,7 @@ semantic_body_labels = [
 
 class VitonDataset(Dataset):
     
-    def __init__(self, opt, phase, test_pairs=None):
+    def __init__(self, opt, phase, dp_segmenter: DenseposeSegmenter = None, test_pairs=None):
 
         opt.label_nc = [len(semantic_body_labels), len(semantic_cloth_labels), len(semantic_densepose_labels)]
         opt.semantic_nc = [label_nc + 1 for label_nc in opt.label_nc]
@@ -126,12 +128,28 @@ class VitonDataset(Dataset):
             self.body_label_centroids = [None] * len(self.filepath_df)
         else:
             self.body_label_centroids = None
+        
+        if dp_segmenter is None:
+            self.dp_segmenter = DenseposeSegmenter("densepose_utils/densepose_rcnn_R_50_FPN_s1x.yaml") 
+        else:
+            self.dp_segmenter = dp_segmenter
+            
     
     def __getitem__(self, index):
         df_row = self.filepath_df.iloc[index]
 
         # get original image of person
         image = cv2.imread(os.path.join(self.db_path, "data", "image", df_row["poseA"]))
+        
+        if "densepose" in self.opt.segmentation:
+            densepose_seg_transf = self.dp_segmenter(image)
+            densepose_seg_transf = cv2.resize(densepose_seg_transf, self.opt.img_size[::-1], 
+                                              interpolation=cv2.INTER_NEAREST)
+            densepose_seg_transf = np.expand_dims(densepose_seg_transf, 0)
+            densepose_seg_transf = torch.tensor(densepose_seg_transf)
+        else:
+            densepose_seg_transf = torch.tensor([]) 
+        
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = cv2.resize(image, self.opt.img_size[::-1], interpolation=cv2.INTER_AREA)
         
@@ -210,22 +228,7 @@ class VitonDataset(Dataset):
         else:
             body_seg_transf = torch.tensor([])
             body_label_centroid = torch.tensor([])
-        
-        if "densepose" in self.opt.segmentation:
-            densepose_seg = cv2.imread(os.path.join(self.db_path, "data", "image_densepose_parse", df_row["poseA"].replace(".jpg", ".png")))
-            densepose_seg = cv2.cvtColor(densepose_seg, cv2.COLOR_BGR2RGB)
-            densepose_seg = cv2.resize(densepose_seg, self.opt.img_size[::-1], interpolation=cv2.INTER_NEAREST)
-            
-            densepose_seg_transf = np.zeros(self.opt.img_size)
-            for i, color in enumerate(semantic_densepose_labels):
-                densepose_seg_transf[np.all(densepose_seg == color, axis=-1)] = i
-                
-            densepose_seg_transf = np.expand_dims(densepose_seg_transf, 0)
-            densepose_seg_transf = torch.tensor(densepose_seg_transf)
-        else:
-            densepose_seg_transf = torch.tensor([]) 
-
-            
+                    
         # scale the inputs to range [-1, 1]
         image = self.transform(image)
         image = (image - 0.5) / 0.5

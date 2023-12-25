@@ -15,8 +15,10 @@ Generated outputs are in **viton/results** folder.
 
 This was the environment in which we ran the experiments:  
 
-**OS: Linux-x64**  
-**Python 3.11.5**  
+**Linux-x64**  
+**Python v3.11.5**  
+**Torch v2.1.2**  
+**Torchvision v0.16.2**  
 **Without CUDA, CPU only**
 
 # How to run
@@ -33,14 +35,16 @@ cd C-VTON
 
 3. Go to the [original repository](https://github.com/benquick123/C-VTON#testing) and download the BPGM and C-VTON pretrained models for VITON-HD as instructed in the **Testing** section. Put the models in their respective folders.
 
-4. Install required packages in your environment using requirements.txt file.
+4. [Install PyTorch](https://pytorch.org/get-started/locally/).
+
+5. Install other required packages in your environment using requirements.txt file.
 ```bash
 pip install -r requirements.txt
 ```
 
-5. Run **scripts/test_vitonhd.sh**.
+6. Run **scripts/test_vitonhd.sh**.
 ```bash
 source scripts/test_vitonhd.sh
 ```
 
-6. You will find the generated outputs in **results/C-VTON-VITON-HD/test_images** folder.
+7. You will find the generated outputs in **results/C-VTON-VITON-HD/test_images** folder.
