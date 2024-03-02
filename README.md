@@ -31,7 +31,7 @@ git clone https://github.com/VTON-Project/C-VTON.git
 cd C-VTON
 ```
 
-2. Download [test_data.zip](https://drive.google.com/file/d/1_8LhD5OjdVbJCmBcjpPqiSVxKCOO2wZU/view?usp=sharing) file. Create a **'data'** folder inside the C-VTON folder. Extract the zip file into this folder.
+2. Download [test_data.zip](https://drive.google.com/file/d/1_8LhD5OjdVbJCmBcjpPqiSVxKCOO2wZU/view?usp=sharing) file. Create a **'data'** folder inside the C-VTON directory. Extract the zip file into this folder.
 
 3. Go to the [original repository](https://github.com/benquick123/C-VTON#testing) and download the BPGM and C-VTON pretrained models for VITON-HD as instructed in the **Testing** section. Put the models in their respective folders.
 
