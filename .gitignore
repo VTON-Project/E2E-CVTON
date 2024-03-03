@@ -5,6 +5,6 @@ _*
 .*shinit
 .history
 .venv*
-/data
+/dataset
 checkpoints
 /results
