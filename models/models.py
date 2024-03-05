@@ -1,7 +1,6 @@
 import os
 import copy
 
-import lpips
 import torch
 from torch.nn import functional as F
 from torch.nn import init
@@ -9,17 +8,19 @@ from torch import nn
 from torch.cuda.amp import autocast
 
 from config import Config
-from . import generators
+from .generators import OASIS_Simple
+from bpgm.models.utils import load_checkpoint as bpgm_load
+from . import losses
+
 
 
 class OASIS_model(nn.Module):
 
-    def __init__(self):
+    def __init__(self, phase):
         super(OASIS_model, self).__init__()
         #--- generator and discriminator ---
-        # self.netG = generators.OASIS_Generator(opt)
-        self.netG = generators.OASIS_Simple(opt)
-        if opt.phase in {"train", "train_whole"}:
+        self.netG = OASIS_Simple()
+        if phase in {"train", "train_whole"}:
             if self.opt.add_d_loss:
                 self.netD = discriminators.OASIS_Discriminator(opt)
             else:
@@ -29,36 +30,24 @@ class OASIS_model(nn.Module):
             if self.opt.add_pd_loss:
                 self.netPD = discriminators.PDiscriminator(opt)
 
-        self.print_parameter_count()
-        self.init_networks()
+        self.print_parameter_count(phase)
+        self.init_networks(phase)
 
-        if "cloth" in self.opt.segmentation:
-            self.seg_edit = None
-            # self.seg_edit = UNet(opt, 3 + (opt.label_nc[0] + 1) + (opt.label_nc[1] - 6 + 1), 6 + 1)
-            # self.seg_edit.eval()
-            # seg_edit_load(self.seg_edit, "./seg_edit/checkpoints/seg_final_%s.pth" % (opt.seg_edit_id))
-        else:
-            self.seg_edit = None
+        self.seg_edit = None
 
         #--- EMA of generator weights ---
         with torch.no_grad():
-            self.netEMA = copy.deepcopy(self.netG) if not opt.no_EMA else None
+            self.netEMA = copy.deepcopy(self.netG)
 
         #--- load previous checkpoints if needed ---
-        self.load_checkpoints()
-        if opt.transform_cloth:
-            bpgm_load(self.netG.bpgm, "./bpgm/checkpoints/bpgm_final_%s.pth" % (opt.bpgm_id))
+        self.load_checkpoints(phase)
+        bpgm_load(self.netG.bpgm, "./bpgm/checkpoints/bpgm_final_%s.pth" % (Config.bpgm_id))
 
         #--- perceptual loss ---#
-        if opt.phase in {"train", "train_whole"}:
-            if opt.add_vgg_loss:
-                self.VGG_loss = losses.VGGLoss()
-            if opt.add_l1_loss:
-                self.L1_loss = nn.L1Loss()
-            if opt.add_lpips_loss:
-                self.LPIPS_loss = lpips.LPIPS(net="vgg", verbose=False)
+        if phase in {"train", "train_whole"}:
+            self.VGG_loss = losses.VGGLoss()
 
-    def forward(self, image, label, mode, losses_computer, label_centroids=None, agnostic=None):
+    def forward(self, image, seg, mode, losses_computer, label_centroids=None, agnostic=None):
         # Branching is applied to be compatible with DataParallel
         with autocast():
             if mode == "losses_G":
@@ -69,7 +58,7 @@ class OASIS_model(nn.Module):
                 # cloth_seg = self.edit_cloth_seg(image["C_t_swap"], label["body_seg"], label["cloth_seg"])
                 # cloth_seg = self.edit_cloth_seg(image["C_t"], label["body_seg"], label["cloth_seg"])
 
-                fake = self.netG(image["I_m"], image["C_t"], label["body_seg"], label["cloth_seg"], label["densepose_seg"], agnostic=agnostic)
+                fake = self.netG(image["I_m"], image["C_t"], seg["body_seg"], seg["cloth_seg"], seg["densepose_seg"], agnostic=agnostic)
                 # from PIL import Image
                 # import numpy as np
 
@@ -97,19 +86,19 @@ class OASIS_model(nn.Module):
                     # Image.fromarray(fake_label).save(os.path.join("sample", "fake_label.png"))
 
                     if "body" in self.opt.segmentation:
-                        loss_G_adv_D_body = losses_computer.loss(output_D[:, self.opt.offsets[0]:self.opt.offsets[1], :, :], label["body_seg"], for_real=True)
+                        loss_G_adv_D_body = losses_computer.loss(output_D[:, self.opt.offsets[0]:self.opt.offsets[1], :, :], seg["body_seg"], for_real=True)
                         loss_G += loss_G_adv_D_body
                     else:
                         loss_G_adv_D_body = None
 
                     if "cloth" in self.opt.segmentation:
-                        loss_G_adv_D_cloth = losses_computer.loss(output_D[:, self.opt.offsets[1]:self.opt.offsets[2], :, :], label["cloth_seg"], for_real=True)
+                        loss_G_adv_D_cloth = losses_computer.loss(output_D[:, self.opt.offsets[1]:self.opt.offsets[2], :, :], seg["cloth_seg"], for_real=True)
                         loss_G += loss_G_adv_D_cloth
                     else:
                         loss_G_adv_D_cloth = None
 
                     if "densepose" in self.opt.segmentation:
-                        loss_G_adv_D_densepose = losses_computer.loss(output_D[:, self.opt.offsets[2]:self.opt.offsets[3], :, :], label["densepose_seg"], for_real=True)
+                        loss_G_adv_D_densepose = losses_computer.loss(output_D[:, self.opt.offsets[2]:self.opt.offsets[3], :, :], seg["densepose_seg"], for_real=True)
                         loss_G += loss_G_adv_D_densepose
                     else:
                         loss_G_adv_D_densepose = None
@@ -141,7 +130,7 @@ class OASIS_model(nn.Module):
                 image = generate_swapped_batch(image)
 
                 if self.opt.add_vgg_loss or self.opt.add_lpips_loss or self.opt.add_l1_loss:
-                    fake = self.netG(image["I_m"], image["C_t"], label["body_seg"], label["cloth_seg"], label["densepose_seg"], agnostic=agnostic)
+                    fake = self.netG(image["I_m"], image["C_t"], seg["body_seg"], seg["cloth_seg"], seg["densepose_seg"], agnostic=agnostic)
 
                     # DELET AFTER
                     # _fake = ((fake * 0.5 + 0.5).detach()[0].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
@@ -178,24 +167,24 @@ class OASIS_model(nn.Module):
 
                     with torch.no_grad():
                         # fake = self.netG(image["I_m"], image["C_t_swap"], label["body_seg"], cloth_seg, label["densepose_seg"])
-                        fake = self.netG(image["I_m"], image["C_t"], label["body_seg"], label["cloth_seg"], label["densepose_seg"], agnostic=agnostic)
+                        fake = self.netG(image["I_m"], image["C_t"], seg["body_seg"], seg["cloth_seg"], seg["densepose_seg"], agnostic=agnostic)
 
                     output_D_fake = self.netD(fake)
 
                     if "body" in self.opt.segmentation:
-                        loss_D_fake_body = losses_computer.loss(output_D_fake[:, self.opt.offsets[0]:self.opt.offsets[1], :, :], label["body_seg"], for_real=False)
+                        loss_D_fake_body = losses_computer.loss(output_D_fake[:, self.opt.offsets[0]:self.opt.offsets[1], :, :], seg["body_seg"], for_real=False)
                         loss_D += loss_D_fake_body
                     else:
                         loss_D_fake_body = None
 
                     if "cloth" in self.opt.segmentation:
-                        loss_D_fake_cloth = losses_computer.loss(output_D_fake[:, self.opt.offsets[1]:self.opt.offsets[2], :, :], label["cloth_seg"], for_real=False)
+                        loss_D_fake_cloth = losses_computer.loss(output_D_fake[:, self.opt.offsets[1]:self.opt.offsets[2], :, :], seg["cloth_seg"], for_real=False)
                         loss_D += loss_D_fake_cloth
                     else:
                         loss_D_fake_cloth = None
 
                     if "densepose" in self.opt.segmentation:
-                        loss_D_fake_densepose = losses_computer.loss(output_D_fake[:, self.opt.offsets[2]:self.opt.offsets[3], :, :], label["densepose_seg"], for_real=False)
+                        loss_D_fake_densepose = losses_computer.loss(output_D_fake[:, self.opt.offsets[2]:self.opt.offsets[3], :, :], seg["densepose_seg"], for_real=False)
                         loss_D += loss_D_fake_densepose
                     else:
                         loss_D_fake_densepose = None
@@ -205,25 +194,25 @@ class OASIS_model(nn.Module):
                     output_D_real = self.netD(image['I'])
 
                     if "body" in self.opt.segmentation:
-                        loss_D_real_body = losses_computer.loss(output_D_real[:, self.opt.offsets[0]:self.opt.offsets[1], :, :], label["body_seg"], for_real=True)
+                        loss_D_real_body = losses_computer.loss(output_D_real[:, self.opt.offsets[0]:self.opt.offsets[1], :, :], seg["body_seg"], for_real=True)
                         loss_D += loss_D_real_body
                     else:
                         loss_D_real_body = None
 
                     if "cloth" in self.opt.segmentation:
-                        loss_D_real_cloth = losses_computer.loss(output_D_real[:, self.opt.offsets[1]:self.opt.offsets[2], :, :], label["cloth_seg"], for_real=True)
+                        loss_D_real_cloth = losses_computer.loss(output_D_real[:, self.opt.offsets[1]:self.opt.offsets[2], :, :], seg["cloth_seg"], for_real=True)
                         loss_D += loss_D_real_cloth
                     else:
                         loss_D_real_cloth = None
 
                     if "densepose" in self.opt.segmentation:
-                        loss_D_real_densepose = losses_computer.loss(output_D_real[:, self.opt.offsets[2]:self.opt.offsets[3], :, :], label["densepose_seg"], for_real=True)
+                        loss_D_real_densepose = losses_computer.loss(output_D_real[:, self.opt.offsets[2]:self.opt.offsets[3], :, :], seg["densepose_seg"], for_real=True)
                         loss_D += loss_D_real_densepose
                     else:
                         loss_D_real_densepose = None
 
                     if not self.opt.no_labelmix:
-                        mixed_inp, mask = generate_labelmix(label, fake, image['I'])
+                        mixed_inp, mask = generate_labelmix(seg, fake, image['I'])
 
                         output_D_mixed = self.netD(mixed_inp)
                         loss_D_lm = self.opt.lambda_labelmix * losses_computer.loss_labelmix(mask, output_D_mixed, output_D_fake, output_D_real)
@@ -239,11 +228,11 @@ class OASIS_model(nn.Module):
                 image = generate_swapped_batch(image)
 
                 # cloth_seg = self.edit_cloth_seg(image["C_t_swap"], label["body_seg"], label["cloth_seg"])
-                cloth_seg = self.edit_cloth_seg(image["C_t"], label["body_seg"], label["cloth_seg"])
+                cloth_seg = self.edit_cloth_seg(image["C_t"], seg["body_seg"], seg["cloth_seg"])
 
                 with torch.no_grad():
                     # fake = self.netG(image["I_m"], image["C_t_swap"], label["body_seg"], cloth_seg, label["densepose_seg"])
-                    fake = self.netG(image["I_m"], image["C_t"], label["body_seg"], cloth_seg, label["densepose_seg"], agnostic=agnostic)
+                    fake = self.netG(image["I_m"], image["C_t"], seg["body_seg"], cloth_seg, seg["densepose_seg"], agnostic=agnostic)
 
                 # output_CD_fake = self.netCD(fake, image["C_t_swap"])
                 output_CD_fake = self.netCD(fake, image["C_t"])
@@ -264,11 +253,11 @@ class OASIS_model(nn.Module):
                 image = generate_swapped_batch(image)
 
                 # cloth_seg = self.edit_cloth_seg(image["C_t_swap"], label["body_seg"], label["cloth_seg"])
-                cloth_seg = self.edit_cloth_seg(image["C_t"], label["body_seg"], label["cloth_seg"])
+                cloth_seg = self.edit_cloth_seg(image["C_t"], seg["body_seg"], seg["cloth_seg"])
 
                 with torch.no_grad():
                     # fake = self.netG(image["I_m"], image["C_t_swap"], label["body_seg"], cloth_seg, label["densepose_seg"])
-                    fake = self.netG(image["I_m"], image["C_t"], label["body_seg"], cloth_seg, label["densepose_seg"], agnostic=agnostic)
+                    fake = self.netG(image["I_m"], image["C_t"], seg["body_seg"], cloth_seg, seg["densepose_seg"], agnostic=agnostic)
 
                 fake = generate_patches(self.opt, fake, label_centroids)
                 output_PD_fake = self.netPD(fake)
@@ -286,24 +275,19 @@ class OASIS_model(nn.Module):
 
             elif mode == "generate":
                 with torch.no_grad():
-                    if self.opt.no_EMA:
-                        fake = self.netG(image["I_m"], image["C_t"], label["body_seg"], label["cloth_seg"], label["densepose_seg"], agnostic=agnostic)
-                    else:
-                        fake = self.netEMA(image["I_m"], image["C_t"], label["body_seg"], label["cloth_seg"], label["densepose_seg"], agnostic=agnostic)
+                    fake = self.netG(image["I_m"], image["C_t"], seg, agnostic=agnostic)
                 return fake
 
             else:
                 raise NotImplementedError
 
-    def load_checkpoints(self):
-        if self.opt.phase == "test" or self.opt.phase == "val":
-            path = os.path.join(self.opt.checkpoints_dir, self.opt.name, "models", str(self.opt.which_iter) + "_")
-            if self.opt.no_EMA:
-                self.netG.load_state_dict(torch.load(path + "G.pth"), strict=False)
-            else:
-                self.netEMA.load_state_dict(torch.load(path + "EMA.pth"), strict=False)
+    def load_checkpoints(self, phase):
+        if phase == "test" or phase == "val":
+            path = os.path.join(Config.model_path, "models", "best_")
+            self.netEMA.load_state_dict(torch.load(path + "EMA.pth"), strict=False)
+
         elif self.opt.continue_train:
-            path = os.path.join(self.opt.checkpoints_dir, self.opt.name, "models", str(self.opt.which_iter) + "_")
+            path = os.path.join(Config.model_path, "models", str(self.opt.which_iter) + "_")
             self.netG.load_state_dict(torch.load(path + "G.pth"))
 
             if self.opt.add_d_loss:
@@ -349,21 +333,21 @@ class OASIS_model(nn.Module):
         else:
             return torch.clone(cloth_seg)
 
-    def print_parameter_count(self):
-        if self.opt.phase in {"train", "train_whole"} and self.opt.add_d_loss:
+    def print_parameter_count(self, phase):
+        if phase in {"train", "train_whole"}:
             networks = [self.netG, self.netD]
         else:
             networks = [self.netG]
         for network in networks:
             param_count = 0
-            for name, module in network.named_modules():
+            for _, module in network.named_modules():
                 if (isinstance(module, nn.Conv2d)
                         or isinstance(module, nn.Linear)
                         or isinstance(module, nn.Embedding)):
                     param_count += sum([p.data.nelement() for p in module.parameters()])
             print('Created', network.__class__.__name__, "with %d parameters" % param_count)
 
-    def init_networks(self):
+    def init_networks(self, phase):
         def init_weights(m, gain=0.02):
             classname = m.__class__.__name__
             if classname.find('BatchNorm2d') != -1:
@@ -376,7 +360,7 @@ class OASIS_model(nn.Module):
                 if hasattr(m, 'bias') and m.bias is not None:
                     init.constant_(m.bias.data, 0.0)
 
-        if self.opt.phase in {"train", "train_whole"} and self.opt.add_d_loss:
+        if phase in {"train", "train_whole"}:
             networks = [self.netG, self.netD]
         else:
             networks = [self.netG]

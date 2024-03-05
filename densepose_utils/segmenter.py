@@ -22,7 +22,7 @@ class DenseposeSegmenter:
         self.model = DefaultPredictor(cfg)
         self.result_extractor = DensePoseResultExtractor()
 
-    def __call__(self, image_bgr: 'ndarray'):
+    def __call__(self, image_bgr: 'ndarray') -> 'ndarray':
         # This method needs more optimization so that it generates one-hot segmentations
         # instead of numerical labels
 
@@ -33,6 +33,6 @@ class DenseposeSegmenter:
         x, y, w, h = result[1][0]
         x, y, w, h = int(x.item()), int(y.item()), int(w.item()), int(h.item())
         labels = result[0][0].labels.cpu().numpy()
-        seg = np.zeros(image_bgr.shape[:2])
+        seg = np.zeros(image_bgr.shape[:2], dtype=labels.dtype)
         seg[y:y+h, x:x+w] = labels
         return seg

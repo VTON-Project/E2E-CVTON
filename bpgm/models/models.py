@@ -143,8 +143,8 @@ class TpsGridGen(nn.Module):
         # sampling grid with dim-0 coords (Y)
         self.grid_X,self.grid_Y = np.meshgrid(np.linspace(-1,1,out_w), np.linspace(-1,1,out_h))
         # grid_X,grid_Y: size [1,H,W,1,1]
-        self.grid_X = torch.tensor(self.grid_X, torch.float).unsqueeze(0).unsqueeze(3)
-        self.grid_Y = torch.tensor(self.grid_Y, torch.float).unsqueeze(0).unsqueeze(3)
+        self.grid_X = torch.tensor(self.grid_X, dtype=torch.float).unsqueeze(0).unsqueeze(3)
+        self.grid_Y = torch.tensor(self.grid_Y, dtype=torch.float).unsqueeze(0).unsqueeze(3)
         if use_cuda:
             self.grid_X = self.grid_X.cuda()
             self.grid_Y = self.grid_Y.cuda()
@@ -156,8 +156,8 @@ class TpsGridGen(nn.Module):
             P_Y,P_X = np.meshgrid(axis_coords,axis_coords)
             P_X = np.reshape(P_X,(-1,1)) # size (N,1)
             P_Y = np.reshape(P_Y,(-1,1)) # size (N,1)
-            P_X = torch.tensor(P_X, torch.float)
-            P_Y = torch.tensor(P_Y, torch.float)
+            P_X = torch.tensor(P_X, dtype=torch.float)
+            P_Y = torch.tensor(P_Y, dtype=torch.float)
             self.P_X_base = P_X.clone()
             self.P_Y_base = P_Y.clone()
             self.Li = self.compute_L_inverse(P_X,P_Y).unsqueeze(0)

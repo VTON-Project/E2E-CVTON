@@ -7,6 +7,7 @@ import torch.nn.utils.spectral_norm as spectral_norm
 
 from config import Config
 from . import norms
+from bpgm.models import BPGM
 
 
 
@@ -17,10 +18,10 @@ class OASIS_Simple(nn.Module):
 
         self.oasis = OASIS_Generator()
 
-        self.bpgm = BPGM(opt)
+        self.bpgm = BPGM()
         self.bpgm.eval()
 
-    def forward(self, I_m, C_t, body_seg, cloth_seg, densepose_seg, agnostic=None):
+    def forward(self, I_m, C_t, densepose_seg, agnostic=None):
         if agnostic is not None:
             C_transformed = self.transform_cloth_old(agnostic, C_t)
         else:
@@ -28,30 +29,19 @@ class OASIS_Simple(nn.Module):
 
         z = torch.cat((I_m, C_t, C_transformed), dim=1)
 
-        seg_dict = {
-            "body": body_seg,
-            "cloth": cloth_seg,
-            "densepose": densepose_seg
-        }
-
-        if len(self.opt.segmentation) == 1:
-            seg = seg_dict[self.opt.segmentation[0]]
-        else:
-            seg = torch.cat([seg_dict[mode] for mode in sorted(seg_dict.keys()) if mode in self.opt.segmentation], axis=1)
-
-        x = self.oasis(seg, z)
+        x = self.oasis(densepose_seg, z)
         return x
 
     def transform_cloth(self, seg, C_t):
         if self.bpgm is not None:
             with torch.no_grad():
                 # grid, _ = self.bpgm(torch.cat((I_m, seg), dim=1), C_t)
-                if self.bpgm.resolution != self.opt.img_size:
+                if self.bpgm.resolution != Config.img_size:
                     _seg = F.interpolate(seg, size=self.bpgm.resolution, mode="nearest")
                     _C_t = F.interpolate(C_t, size=self.bpgm.resolution, mode="bilinear", align_corners=False)
                     grid = self.bpgm(_seg, _C_t).permute(0, 3, 1, 2)
 
-                    grid = F.interpolate(grid, size=self.opt.img_size, mode="bilinear", align_corners=False)
+                    grid = F.interpolate(grid, size=Config.img_size, mode="bilinear", align_corners=False)
                     grid = grid.permute(0, 2, 3, 1)
                 else:
                     grid = self.bpgm(seg, C_t)
@@ -66,12 +56,12 @@ class OASIS_Simple(nn.Module):
         if self.bpgm is not None:
             with torch.no_grad():
                 # grid, _ = self.bpgm(torch.cat((I_m, seg), dim=1), C_t)
-                if self.bpgm.resolution != self.opt.img_size:
+                if self.bpgm.resolution != Config.img_size:
                     agnostic = F.interpolate(agnostic, size=self.bpgm.resolution, mode="nearest")
                     _C_t = F.interpolate(C_t, size=self.bpgm.resolution, mode="bilinear", align_corners=False)
                     grid = self.bpgm(agnostic, _C_t).permute(0, 3, 1, 2)
 
-                    grid = F.interpolate(grid, size=self.opt.img_size, mode="bilinear", align_corners=False)
+                    grid = F.interpolate(grid, size=Config.img_size, mode="bilinear", align_corners=False)
                     grid = grid.permute(0, 2, 3, 1)
                 else:
                     grid = self.bpgm(agnostic, C_t)

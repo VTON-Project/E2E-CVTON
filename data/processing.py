@@ -34,12 +34,12 @@ class Preprocessor:
 
 
     def __call__(self, person_img_bgr: 'ndarray',
-                 cloth_img_bgr: 'ndarray') -> 'dict[str, Tensor | dict[str, Tensor]]':
+                 cloth_img_bgr: 'ndarray') -> 'tuple[dict[str, Tensor], Tensor]':
 
         densepose_labels = self.dp_segmenter(person_img_bgr)
         densepose_labels = cv2.resize(densepose_labels, Config.img_size[::-1], interpolation=cv2.INTER_NEAREST)
-        densepose_labels = torch.from_numpy(densepose_labels).to(self.device)
-        densepose_seg = torch.zeros(Config.dp_nc + 1, *self.image_size, dtype=torch.float, device=self.device)
+        densepose_labels = torch.from_numpy(densepose_labels).to(self.device, torch.int64)
+        densepose_seg = torch.zeros(Config.dp_nc, *Config.img_size, dtype=torch.float, device=self.device)
         densepose_seg.scatter_(0, densepose_labels.unsqueeze(0), 1.)
         del densepose_labels
 
@@ -49,7 +49,7 @@ class Preprocessor:
         cloth_image = cv2.cvtColor(cloth_img_bgr, cv2.COLOR_BGR2RGB)
 
         mask = self.masker.predict_mask(person_img_bgr)
-        mask = cv2.resize(mask, Config.img_size[::-1], interpolation=cv2.INTER_NEAREST)
+        mask = cv2.resize(mask, Config.img_size[::-1], interpolation=cv2.INTER_NEAREST)[..., None]
 
         masked_image = image * (1 - mask)
 
