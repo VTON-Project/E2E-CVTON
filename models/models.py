@@ -1,11 +1,12 @@
 import os
+import copy
 
 import lpips
 import torch
 from torch.nn import functional as F
 from torch.nn import init
-import copy
 from torch import nn
+from torch.cuda.amp import autocast
 
 from config import Config
 from . import generators
@@ -59,7 +60,7 @@ class OASIS_model(nn.Module):
 
     def forward(self, image, label, mode, losses_computer, label_centroids=None, agnostic=None):
         # Branching is applied to be compatible with DataParallel
-        with torch.autocast(Config.device):
+        with autocast():
             if mode == "losses_G":
                 loss_G = 0
 
@@ -169,7 +170,7 @@ class OASIS_model(nn.Module):
             elif mode == "losses_D":
                 loss_D = 0
 
-                with torch.autocast(Config.device, enabled=False):
+                with autocast(enabled=False):
                     image = generate_swapped_batch(image)
 
                     # cloth_seg = self.edit_cloth_seg(image["C_t_swap"], label["body_seg"], label["cloth_seg"])

@@ -17,7 +17,9 @@ class Preprocessor:
     def __init__(self):
         self.dp_segmenter = DenseposeSegmenter("densepose_utils/densepose_rcnn_R_50_FPN_s1x.yaml")
         self.masker = Masker(Config.masker_path)
-        Config.img_size = (Config.img_size, Config.img_size * 0.75)
+
+        if isinstance(Config.img_size, int):
+            Config.img_size = (Config.img_size, int(Config.img_size * 0.75))
 
         DENSEPOSE_NUM_CHANNELS = 25
         Config.dp_nc = DENSEPOSE_NUM_CHANNELS + 1  # I don't know why, but was present in original implementation
@@ -28,15 +30,17 @@ class Preprocessor:
             transforms.ToTensor(),
         ])
 
+        self.device = "cuda" if Config.gpu_ids[0] != -1 else "cpu"
+
 
     def __call__(self, person_img_bgr: 'ndarray',
                  cloth_img_bgr: 'ndarray') -> 'dict[str, Tensor | dict[str, Tensor]]':
 
         densepose_labels = self.dp_segmenter(person_img_bgr)
         densepose_labels = cv2.resize(densepose_labels, Config.img_size[::-1], interpolation=cv2.INTER_NEAREST)
-        densepose_labels = torch.from_numpy(densepose_labels).to(Config.device)
-        densepose_seg = torch.zeros(Config.dp_nc + 1, *self.image_size, dtype=torch.float, device=Config.device)
-        densepose_seg.scatter_(0, densepose_labels, 1.)
+        densepose_labels = torch.from_numpy(densepose_labels).to(self.device)
+        densepose_seg = torch.zeros(Config.dp_nc + 1, *self.image_size, dtype=torch.float, device=self.device)
+        densepose_seg.scatter_(0, densepose_labels.unsqueeze(0), 1.)
         del densepose_labels
 
         image = cv2.cvtColor(person_img_bgr, cv2.COLOR_BGR2RGB)
@@ -49,9 +53,9 @@ class Preprocessor:
 
         masked_image = image * (1 - mask)
 
-        masked_image = self.transform(masked_image).to(Config.device)
+        masked_image = self.transform(masked_image).to(self.device)
         masked_image = (masked_image - 0.5) / 0.5
-        cloth_image = self.transform(cloth_image).to(Config.device)
+        cloth_image = self.transform(cloth_image).to(self.device)
         cloth_image = (cloth_image - 0.5) / 0.5
 
         return {"I_m": masked_image, "C_t": cloth_image}, densepose_seg
