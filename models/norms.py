@@ -1,15 +1,14 @@
-import torch.nn.utils.spectral_norm as spectral_norm
-from models.sync_batchnorm import SynchronizedBatchNorm2d
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
 
 
+
 class SPADE(nn.Module):
-    def __init__(self, opt, norm_nc, label_nc):
+    def __init__(self, norm_nc, label_nc):
         super().__init__()
-        
-        self.first_norm = get_norm_layer(opt, norm_nc)
-        ks = opt.spade_ks
+
+        self.first_norm = nn.BatchNorm2d(norm_nc, affine=False)
+        ks = 3
         nhidden = 128
         pw = ks // 2
         self.mlp_shared = nn.Sequential(
@@ -21,31 +20,12 @@ class SPADE(nn.Module):
 
     def forward(self, x, segmap):
         normalized = self.first_norm(x)
-        
+
         if tuple(x.shape[2:]) != tuple(segmap.shape[2:]):
             segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')
-        
+
         actv = self.mlp_shared(segmap)
         gamma = self.mlp_gamma(actv)
         beta = self.mlp_beta(actv)
         out = normalized * (1 + gamma) + beta
         return out
-
-
-def get_spectral_norm(opt):
-    if opt.no_spectral_norm:
-        return nn.Identity()
-    else:
-        return spectral_norm
-
-
-def get_norm_layer(opt, norm_nc):
-    if opt.param_free_norm == 'instance':
-        return nn.InstanceNorm2d(norm_nc, affine=False)
-    if opt.param_free_norm == 'syncbatch':
-        return SynchronizedBatchNorm2d(norm_nc, affine=False)
-    if opt.param_free_norm == 'batch':
-        return nn.BatchNorm2d(norm_nc, affine=False)
-    else:
-        raise ValueError('%s is not a recognized param-free norm type in SPADE'
-                         % opt.param_free_norm)

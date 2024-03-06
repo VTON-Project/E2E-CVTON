@@ -6,9 +6,8 @@ from torch import nn
 from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large
 from tqdm import tqdm
 
-from .utils import convert_to_path
-from utils.utils import AverageCalculator
-from .data import preprocess_cv2
+from .utils import convert_to_path, AverageCalculator
+from .data import preprocess_rgb
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -18,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class Masker(nn.Module):
-    def __init__(self, load_weights: str | None = None, device = "cpu"):
+    def __init__(self, load_weights: str | None = None, device = None):
         super().__init__()
         self.model = deeplabv3_mobilenet_v3_large(weights="DEFAULT" if load_weights=="PRETRAINED" else None)
         self.model.classifier[-1] = nn.Conv2d(256, 1, 1)
@@ -31,6 +30,8 @@ class Masker(nn.Module):
         if load_weights is not None and load_weights != "PRETRAINED":
             self.load_model(load_weights)
 
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         self.to_device(device)
         self.trainmode(False)
 
@@ -120,10 +121,10 @@ class Masker(nn.Module):
         return self.model(X)["out"].squeeze(1)
 
 
-    def predict_mask(self, img_bgr: 'ndarray') -> 'ndarray':
-        """Generates mask for a cv2 image"""
+    def predict_mask(self, img: 'ndarray') -> 'ndarray':
+        """Generates mask for an RGB image"""
 
-        img = preprocess_cv2(img_bgr).unsqueeze(0)
+        img = preprocess_rgb(img).unsqueeze(0)
         img = img.to(self.device)
 
         with torch.no_grad():
@@ -133,7 +134,7 @@ class Masker(nn.Module):
             output[output >= 0.5] = 1
             output = output.to(torch.uint8)
 
-        return output.cpu().numpy()
+        return output.detach().cpu().numpy()
 
 
     def trainmode(self, activate: bool):

@@ -50,7 +50,8 @@ class MaskerDataset(Dataset):
     def __getitem__(self, i):
         person = cv2.imread(self.people[i])
         person = cv2.resize(person, self.image_size[::-1])
-        person = preprocess_cv2(person)
+        person = cv2.cvtColor(person, cv2.COLOR_BGR2RGB)
+        person = preprocess_rgb(person)
 
         mask = cv2.imread(self.masks[i], cv2.IMREAD_GRAYSCALE)
         mask = cv2.resize(mask, self.image_size[::-1], interpolation=cv2.INTER_NEAREST)
@@ -61,12 +62,11 @@ class MaskerDataset(Dataset):
 
 
 
-def preprocess_cv2(img_bgr: 'ndarray') -> 'Tensor':
-    """Takes a cv2 image as input and outputs a Tensor which can be given as input
+def preprocess_rgb(img: 'ndarray') -> 'Tensor':
+    """Takes a RGB image as input and outputs a Tensor which can be given as input
     to 'deeplabv3_mobilenet_v3_large' model in batches."""
 
-    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-    img = torch.as_tensor(img_rgb, dtype=torch.float32)
+    img = torch.as_tensor(img, dtype=torch.float32)
     img = img.permute(2, 0, 1)
     return preprocess_tensor(img)
 
