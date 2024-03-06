@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 
 class VTONInference:
+    """Takes RGB images as input and returns RGB image as VTON output."""
 
     def __init__(self):
         self.preprocessor = Preprocessor()
@@ -23,8 +24,8 @@ class VTONInference:
         if Config.gpu_ids[0] != -1: model = put_on_multi_gpus(model)
 
 
-    def __call__(self, person_img_bgr: 'ndarray', cloth_img_bgr: 'ndarray') -> 'ndarray':
-        image, seg = self.preprocessor(person_img_bgr, cloth_img_bgr)
+    def __call__(self, person_img: 'ndarray', cloth_img: 'ndarray') -> 'ndarray':
+        image, seg = self.preprocessor(person_img, cloth_img)
 
         for k, v in image.items():
             image[k] = v.unsqueeze(0)
@@ -34,7 +35,6 @@ class VTONInference:
 
         pred = (pred + 1) / 2
         pred = (pred * 255).astype(np.uint8)
-        pred = cv2.cvtColor(pred, cv2.COLOR_RGB2BGR)
         pred = cv2.resize(pred, Config.img_size[::-1], interpolation=cv2.INTER_AREA)
 
         return pred

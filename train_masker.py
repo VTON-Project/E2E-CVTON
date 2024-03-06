@@ -16,8 +16,8 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # --------------------------------------------------------------------------
 
-train_ds, test_ds = create_masker_dataset_pair('data/viton/data/image',
-                                               'data/viton/data/mask',
+train_ds, test_ds = create_masker_dataset_pair('dataset/viton/data/image',
+                                               'dataset/viton/data/mask',
                                                (1024, 768),
                                                0.8, rng_seed=9750)
 

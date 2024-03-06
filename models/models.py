@@ -1,5 +1,4 @@
 import os
-import copy
 
 import torch
 from torch.nn import functional as F
@@ -19,7 +18,7 @@ class OASIS_model(nn.Module):
     def __init__(self, phase):
         super(OASIS_model, self).__init__()
         #--- generator and discriminator ---
-        self.netG = OASIS_Simple()
+        self.netG = self.netEMA = OASIS_Simple()
         if phase in {"train", "train_whole"}:
             if self.opt.add_d_loss:
                 self.netD = discriminators.OASIS_Discriminator(opt)
@@ -34,10 +33,6 @@ class OASIS_model(nn.Module):
         self.init_networks(phase)
 
         self.seg_edit = None
-
-        #--- EMA of generator weights ---
-        with torch.no_grad():
-            self.netEMA = copy.deepcopy(self.netG)
 
         #--- load previous checkpoints if needed ---
         self.load_checkpoints(phase)
@@ -275,7 +270,7 @@ class OASIS_model(nn.Module):
 
             elif mode == "generate":
                 with torch.no_grad():
-                    fake = self.netG(image["I_m"], image["C_t"], seg, agnostic=agnostic)
+                    fake = self.netEMA(image["I_m"], image["C_t"], seg, agnostic=agnostic)
                 return fake
 
             else:

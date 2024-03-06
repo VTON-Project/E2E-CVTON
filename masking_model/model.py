@@ -7,7 +7,7 @@ from torchvision.models.segmentation import deeplabv3_mobilenet_v3_large
 from tqdm import tqdm
 
 from .utils import convert_to_path, AverageCalculator
-from .data import preprocess_cv2
+from .data import preprocess_rgb
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -121,10 +121,10 @@ class Masker(nn.Module):
         return self.model(X)["out"].squeeze(1)
 
 
-    def predict_mask(self, img_bgr: 'ndarray') -> 'ndarray':
-        """Generates mask for a cv2 image"""
+    def predict_mask(self, img: 'ndarray') -> 'ndarray':
+        """Generates mask for an RGB image"""
 
-        img = preprocess_cv2(img_bgr).unsqueeze(0)
+        img = preprocess_rgb(img).unsqueeze(0)
         img = img.to(self.device)
 
         with torch.no_grad():
