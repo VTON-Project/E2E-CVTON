@@ -21,7 +21,12 @@ class VTONInference:
         self.model = OASIS_model('test')
         self.model.eval()
 
-        if Config.gpu_ids[0] != -1: model = put_on_multi_gpus(model)
+        print("Running inference on ", end="")
+        if Config.gpu_ids[0] != -1:
+            self.model = put_on_multi_gpus(self.model)
+            print("CUDA")
+        else:
+            print("CPU")
 
 
     def __call__(self, person_img: 'ndarray', cloth_img: 'ndarray') -> 'ndarray':

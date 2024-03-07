@@ -1,5 +1,8 @@
+import torch
+
+
 class Config:
-    gpu_ids = [-1]
+    gpu_ids = [0 if torch.cuda.is_available() else -1]
     seed = None
     batch_size = 16
     img_size = 512

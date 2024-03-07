@@ -269,7 +269,7 @@ class OASIS_model(nn.Module):
                 return loss_PD, [loss_PD_fake, loss_PD_real]
 
             elif mode == "generate":
-                with torch.no_grad():
+                with torch.no_grad(), autocast(enabled=False):
                     fake = self.netEMA(image["I_m"], image["C_t"], seg, agnostic=agnostic)
                 return fake
 
@@ -278,8 +278,9 @@ class OASIS_model(nn.Module):
 
     def load_checkpoints(self, phase):
         if phase == "test" or phase == "val":
-            path = os.path.join(Config.model_path, "models", "best_")
-            self.netEMA.load_state_dict(torch.load(path + "EMA.pth"), strict=False)
+            path = os.path.join(Config.model_path, "models", "best_") + "EMA.pth"
+            map_location = None if Config.gpu_ids[0] != -1 else "cpu"
+            self.netEMA.load_state_dict(torch.load(path, map_location), strict=False)
 
         elif self.opt.continue_train:
             path = os.path.join(Config.model_path, "models", str(self.opt.which_iter) + "_")
