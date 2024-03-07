@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from .utils import convert_to_path, AverageCalculator
 from .data import preprocess_rgb
+from config import Config
 
 if TYPE_CHECKING:
     from os import PathLike
@@ -27,11 +28,12 @@ class Masker(nn.Module):
         self.loss_func = nn.BCEWithLogitsLoss()
         self.optimizer = torch.optim.Adam(self.parameters())
 
-        if load_weights is not None and load_weights != "PRETRAINED":
-            self.load_model(load_weights)
-
         if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cuda" if Config.gpu_ids[0] != -1 else "cpu"
+
+        if load_weights is not None and load_weights != "PRETRAINED":
+            self.load_model(load_weights, device)
+
         self.to_device(device)
         self.trainmode(False)
 
@@ -142,8 +144,8 @@ class Masker(nn.Module):
         for p in self.parameters():
             p.requires_grad = activate
 
-    def load_model(self, model_path: 'str | PathLike'):
-        self.load_state_dict(torch.load(model_path))
+    def load_model(self, model_path: 'str | PathLike', device):
+        self.load_state_dict(torch.load(model_path, device))
 
     def to_device(self, device):
         self.device = device
