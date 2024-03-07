@@ -269,7 +269,7 @@ class OASIS_model(nn.Module):
                 return loss_PD, [loss_PD_fake, loss_PD_real]
 
             elif mode == "generate":
-                with torch.no_grad():
+                with torch.no_grad(), autocast(enabled=False):
                     fake = self.netEMA(image["I_m"], image["C_t"], seg, agnostic=agnostic)
                 return fake
 

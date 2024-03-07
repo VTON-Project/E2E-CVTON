@@ -19,7 +19,7 @@ class DenseposeSegmenter:
         add_densepose_config(cfg)
         cfg.merge_from_file(str(cfg_path))
         cfg.MODEL.WEIGHTS = "https://dl.fbaipublicfiles.com/densepose/densepose_rcnn_R_50_FPN_s1x/165712039/model_final_162be9.pkl"
-        self.model = DefaultPredictor(cfg)
+        self.model = DefaultPredictor(cfg) #! DefaultPredictor should not be used in production
         self.result_extractor = DensePoseResultExtractor()
 
     def __call__(self, image_bgr: 'ndarray') -> 'ndarray':
