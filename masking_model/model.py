@@ -64,7 +64,7 @@ class Masker(nn.Module):
         for g in self.optimizer.param_groups:
             g['lr'] = run["lr"]
 
-        if last_ckpt.exists(): self.load_model(last_ckpt)
+        if last_ckpt.exists(): self.load_model(last_ckpt, self.device)
 
         calc = AverageCalculator()
         least_loss = self._get_least_loss(run["test_losses"])
