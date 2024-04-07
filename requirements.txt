@@ -1,3 +1,5 @@
+# torch torchvision # Install from https://pytorch.org/get-started/locally/
+
 opencv-python==4.8.1.78
 lpips==0.1.4
 pandas==2.1.4
@@ -7,3 +9,6 @@ gunicorn==21.2.0
 uvicorn[standard]==0.27.1
 fastapi==0.110.0
 python-multipart==0.0.9
+rembg[gpu]==2.0.56
+
+--extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/

@@ -1,6 +1,8 @@
+from functools import partial
 from typing import TYPE_CHECKING
 
 import cv2
+import rembg
 import torch
 from torchvision import transforms
 
@@ -19,12 +21,13 @@ class Preprocessor:
     def __init__(self):
         self.dp_segmenter = DenseposeSegmenter("densepose_utils/densepose_rcnn_R_50_FPN_s1x.yaml")
         self.masker = Masker(Config.masker_path)
+        self.remove_bg = partial(rembg.remove, bgcolor = (255, 255, 255, 255), session = rembg.new_session())
 
         if isinstance(Config.img_size, int):
             Config.img_size = (Config.img_size, int(Config.img_size * 0.75))
 
         DENSEPOSE_NUM_CHANNELS = 25
-        Config.dp_nc = DENSEPOSE_NUM_CHANNELS + 1  # I don't know why, but was present in original implementation
+        Config.dp_nc = DENSEPOSE_NUM_CHANNELS + 1  # I don't know why, but it was present in the original implementation
 
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
@@ -38,6 +41,9 @@ class Preprocessor:
     def __call__(self, person_img: 'ndarray',
                  cloth_img: 'ndarray') -> 'tuple[dict[str, Tensor], Tensor]':
 
+        person_img = self.remove_bg(person_img)[..., :3]
+        cloth_img = self.remove_bg(cloth_img)[..., :3]
+
         person_img_bgr = cv2.cvtColor(person_img, cv2.COLOR_RGB2BGR)
         densepose_labels = self.dp_segmenter(person_img_bgr)
         densepose_labels = cv2.resize(densepose_labels, Config.img_size[::-1], interpolation=cv2.INTER_NEAREST)
@@ -46,7 +52,7 @@ class Preprocessor:
         densepose_seg.scatter_(0, densepose_labels.unsqueeze(0), 1.)
         del densepose_labels
 
-        mask = self.masker.predict_mask(person_img)
+        mask = self.masker.predict_mask(person_img.copy())
 
         person_img = cv2.resize(person_img, Config.img_size[::-1], interpolation=cv2.INTER_AREA)
         mask = cv2.resize(mask, Config.img_size[::-1], interpolation=cv2.INTER_NEAREST)[..., None]

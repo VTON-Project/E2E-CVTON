@@ -21,10 +21,11 @@ Trained parameters for `masking_model.Masker`.
 
 ## Recommended Environment
 
-This was the development environment which we used:
+This was the environment which we used for development:
 
 - **Linux-x64**  
 - **Python v3.12.2**  
+- **CUDA 12.4**
 - **Torch v2.2.1**  
 - **Torchvision v0.17.1**  
 
