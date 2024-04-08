@@ -3,12 +3,25 @@ from typing import Annotated
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from infer import VTONInference
 
 
 app = FastAPI(docs_url=None, redoc_url=None)
 model = VTONInference()
+
+allowed_origins = [
+    "http://localhost:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.post("/")
