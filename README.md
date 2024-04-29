@@ -1,6 +1,22 @@
-# C-VTON
+# E2E-CVTON
 
-[Original Repository](https://github.com/benquick123/C-VTON)
+E2E-CVTON is an end-to-end system which can generate a cloth try-on image, provided an image of a person and of a cloth. This system is implemented as a FastAPI server which is used to interact with the AI model over HTTP.
+
+This project uses [C-VTON](https://github.com/benquick123/C-VTON) as the baseline model to generate try-on images. 
+
+| Person | Cloth | Try-on image |
+| :----: | :----: | :---------: |
+| <img src="https://i.ibb.co/8zpP90J/1.jpg" alt="Person 1" height="300"> | <img src="https://i.ibb.co/4ZFm50V/1.jpg" alt="Person 1" height="300"> | <img src="https://i.ibb.co/bPwQ25H/1.jpg" alt="Person 1" height="300"> |
+
+<details>
+    <summary> Click to see more examples </summary>
+
+| Person | Cloth | Try-on image |
+| :----: | :----: | :---------: |
+| <img src="https://i.ibb.co/vJXCXYt/2.jpg" alt="Person 2" height="300"> | <img src="https://i.ibb.co/C0cgqRQ/2.jpg" alt="Person 1" height="300"> | <img src="https://i.ibb.co/G5GsQfg/2.jpg" alt="Person 1" height="300"> |
+| <img src="https://i.ibb.co/DkmYTTt/3.jpg" alt="Person 3" height="300"> | <img src="https://i.ibb.co/JFwLGr2/3.jpg" alt="Person 1" height="300"> | <img src="https://i.ibb.co/YjkBrvt/3.jpg" alt="Person 1" height="300"> |
+
+</details>
 
 ## Assets
 
@@ -33,8 +49,8 @@ This was the environment which we used for development:
 
 1. Clone the repository and move into the cloned directory.
     ```bash
-    git clone https://github.com/VTON-Project/C-VTON.git
-    cd C-VTON
+    git clone https://github.com/VTON-Project/E2E-CVTON.git
+    cd E2E-CVTON
     ```
 
 2. Go to the [original repository](https://github.com/benquick123/C-VTON#testing) and download the BPGM and C-VTON pretrained models for VITON-HD as instructed in the **Testing** section. Put the models in their respective folders.
